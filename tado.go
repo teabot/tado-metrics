@@ -122,9 +122,14 @@ func zoneInfo(tadoClient *http.Client, accessToken string, homeId int, zone Tado
 	m := jsonResponse(res)
 
 	var zoneInfo TadoZoneInfo
+	power := false
+	if strings.Compare(jsonPath(m, []string{"setting", "power"}).(string), "ON") == 0 {
+		power = true
+	}
+
 	if zone.Id == 0 {
 		demand := 0.0
-		if strings.Compare(jsonPath(m, []string{"setting", "power"}).(string), "ON") == 0 {
+		if power {
 			demand = 100.0
 		}
 		zoneInfo = TadoZoneInfo{
@@ -135,9 +140,13 @@ func zoneInfo(tadoClient *http.Client, accessToken string, homeId int, zone Tado
 			Humidity:    0.0,
 		}
 	} else {
+		setpoint := 0.0
+		if power {
+			setpoint = jsonPath(m, []string{"setting", "temperature", "celsius"}).(float64)
+		}
 		zoneInfo = TadoZoneInfo{
 			Zone:        zone,
-			SetPoint:    jsonPath(m, []string{"setting", "temperature", "celsius"}).(float64),
+			SetPoint:    setpoint,
 			Demand:      jsonPath(m, []string{"activityDataPoints", "heatingPower", "percentage"}).(float64),
 			Temperature: jsonPath(m, []string{"sensorDataPoints", "insideTemperature", "celsius"}).(float64),
 			Humidity:    jsonPath(m, []string{"sensorDataPoints", "humidity", "percentage"}).(float64),
