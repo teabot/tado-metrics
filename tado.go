@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -210,7 +209,7 @@ func main() {
 		publishMetrics(metricsData, "Tado")
 	}
 
-	fmt.Println(zoneInfos)
+	//fmt.Println(zoneInfos)
 }
 
 func publishMetrics(metricData []cloudwatch.MetricDatum, namespace string) {
