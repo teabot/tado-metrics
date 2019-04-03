@@ -26,6 +26,7 @@ type TadoZone struct {
 
 type TadoZoneInfo struct {
 	Zone        TadoZone
+	Power       bool
 	SetPoint    float64
 	Temperature float64
 	Humidity    float64
@@ -122,22 +123,33 @@ func zoneInfo(tadoClient *http.Client, accessToken string, homeId int, zone Tado
 	m := jsonResponse(res)
 
 	var zoneInfo TadoZoneInfo
+	power := false
+	if strings.Compare(jsonPath(m, []string{"setting", "power"}).(string), "ON") == 0 {
+		power = true
+	}
+
 	if zone.Id == 0 {
 		demand := 0.0
-		if strings.Compare(jsonPath(m, []string{"setting", "power"}).(string), "ON") == 0 {
+		if power {
 			demand = 100.0
 		}
 		zoneInfo = TadoZoneInfo{
 			Zone:        zone,
+			Power:       power,
 			SetPoint:    0.0,
 			Temperature: 0.0,
 			Demand:      demand,
 			Humidity:    0.0,
 		}
 	} else {
+		setpoint := 0.0
+		if power {
+			setpoint = jsonPath(m, []string{"setting", "temperature", "celsius"}).(float64)
+		}
 		zoneInfo = TadoZoneInfo{
 			Zone:        zone,
-			SetPoint:    jsonPath(m, []string{"setting", "temperature", "celsius"}).(float64),
+			Power:       power,
+			SetPoint:    setpoint,
 			Demand:      jsonPath(m, []string{"activityDataPoints", "heatingPower", "percentage"}).(float64),
 			Temperature: jsonPath(m, []string{"sensorDataPoints", "insideTemperature", "celsius"}).(float64),
 			Humidity:    jsonPath(m, []string{"sensorDataPoints", "humidity", "percentage"}).(float64),
@@ -188,14 +200,16 @@ func main() {
 
 	for _, zoneInfo := range zoneInfos {
 		metricsData := make([]cloudwatch.MetricDatum, 0)
-		metricsData = appendMetricDatum(metricsData, zoneInfo.Zone.Name, "setpoint", cloudwatch.StandardUnitNone, zoneInfo.SetPoint)
+		if zoneInfo.Power {
+			metricsData = appendMetricDatum(metricsData, zoneInfo.Zone.Name, "setpoint", cloudwatch.StandardUnitNone, zoneInfo.SetPoint)
+		}
 		metricsData = appendMetricDatum(metricsData, zoneInfo.Zone.Name, "temperature", cloudwatch.StandardUnitNone, zoneInfo.Temperature)
 		metricsData = appendMetricDatum(metricsData, zoneInfo.Zone.Name, "humidity", cloudwatch.StandardUnitPercent, zoneInfo.Humidity)
 		metricsData = appendMetricDatum(metricsData, zoneInfo.Zone.Name, "demand", cloudwatch.StandardUnitPercent, zoneInfo.Demand)
 		publishMetrics(metricsData, "Tado")
 	}
 
-	// fmt.Println(zoneInfos)
+	//fmt.Println(zoneInfos)
 }
 
 func publishMetrics(metricData []cloudwatch.MetricDatum, namespace string) {
